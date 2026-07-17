@@ -20,7 +20,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -31,6 +31,22 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "VeriSnap uses the camera to capture live evidence. Photos are taken directly in-app and cannot be imported from your gallery, which protects the chain of custody.",
+          "microphonePermission": "VeriSnap uses the microphone to record audio for video evidence.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "VeriSnap records your exact GPS location at the moment of capture so it can be cryptographically bound to your evidence. Location is only read while you are actively capturing."
         }
       ]
     ],
