@@ -62,6 +62,34 @@ export interface EvidenceMetadata {
 }
 
 /**
+ * The exact column shape inserted into `evidence_records`. Snake_case because it
+ * maps 1:1 to the Postgres columns. `server_received_at` and `created_at` are
+ * intentionally omitted — those are written by the database (trusted timestamps),
+ * never by the client.
+ */
+export interface EvidenceInsert {
+  id: string;
+  user_id: string;
+  storage_path: string;
+  sha256_hash: string;
+  captured_at_utc: string;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  gps_accuracy_m: number | null;
+  location_captured_at: string | null;
+  device_info: DeviceInfo;
+  exif: Record<string, unknown> | null;
+  category: EvidenceCategory | null;
+}
+
+/** Outcome of attempting to persist a capture (online or offline). */
+export type SaveResult =
+  | { status: 'uploaded'; sha256Hash: string }
+  | { status: 'queued'; reason: 'offline' | 'error'; sha256Hash: string }
+  | { status: 'limit_reached' }
+  | { status: 'error'; message: string };
+
+/**
  * A row as stored in / read back from the `evidence_records` table.
  *
  * `capturedAtUtc` is the untrusted device clock; `serverReceivedAt` is written by
