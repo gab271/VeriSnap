@@ -18,16 +18,16 @@
  */
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { LocationSubscription } from 'expo-location';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/Button';
 import { CameraOverlay } from '@/components/CameraOverlay';
 import { CapturePreview } from '@/components/CapturePreview';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { useTheme } from '@/hooks/use-theme';
+import { palette, radius, scrim, space, type } from '@/theme/tokens';
 import { saveEvidence } from '@/services/evidence';
 import { requestLocationPermission, watchLocation } from '@/services/location';
 import { useAuthStore } from '@/store/authStore';
@@ -36,7 +36,7 @@ import { useEvidenceStore } from '@/store/evidenceStore';
 import type { CaptureResult, GpsCoordinates } from '@/types/evidence';
 
 export function CaptureScreen() {
-  const theme = useTheme();
+  const router = useRouter();
   const signOut = useAuthStore((s) => s.signOut);
   const user = useAuthStore((s) => s.user);
   const pendingCount = useEvidenceStore((s) => s.pendingCount);
@@ -133,19 +133,26 @@ export function CaptureScreen() {
       await Promise.all([refreshPending(), refreshEntitlement()]);
 
       switch (result.status) {
-        case 'uploaded':
-          Alert.alert(
-            'Evidence secured',
-            `Uploaded and recorded with a trusted server timestamp.\n\nSHA-256:\n${result.sha256Hash}`,
-            [{ text: 'Done', onPress: () => setCapture(null) }],
-          );
+        case 'uploaded': {
+          // The server independently re-hashes and signs the record; surface that
+          // outcome, because "sealed" is the claim that actually has legal weight.
+          const sealNote =
+            result.verification === 'verified'
+              ? 'Sealed: the server re-hashed the stored file and signed the record.'
+              : result.verification === 'mismatch'
+                ? 'Seal broken: the stored file does not match the fingerprint taken at capture.'
+                : 'Awaiting seal. It will be signed automatically.';
+
+          Alert.alert('Evidence filed', `${sealNote}\n\nFingerprint\n${result.sha256Hash}`, [
+            { text: 'Done', onPress: () => setCapture(null) },
+          ]);
           break;
+        }
         case 'queued':
           Alert.alert(
-            'Saved offline',
-            "No connection right now. Your evidence is encrypted on this device and will " +
-              "upload automatically as soon as you're back online.\n\nSHA-256:\n" +
-              result.sha256Hash,
+            'Filed offline',
+            'No connection right now. This evidence is encrypted on your device and uploads ' +
+              `automatically when you are back online.\n\nFingerprint\n${result.sha256Hash}`,
             [{ text: 'Done', onPress: () => setCapture(null) }],
           );
           break;
@@ -167,38 +174,28 @@ export function CaptureScreen() {
   // ---- Permission / loading states -----------------------------------------
   if (!cameraPermission) {
     return (
-      <ThemedView style={styles.centered}>
-        <ActivityIndicator />
-      </ThemedView>
+      <View style={styles.centered}>
+        <ActivityIndicator color={palette.cyan} />
+      </View>
     );
   }
 
   if (!cameraPermission.granted) {
     return (
-      <ThemedView style={styles.centered}>
+      <View style={styles.centered}>
         <SafeAreaView style={styles.permission}>
-          <ThemedText type="subtitle" style={styles.center}>
-            Camera access
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
-            VeriSnap captures evidence live and never imports from your gallery, so
-            camera access is required to continue.
-          </ThemedText>
-          <Pressable
-            style={[styles.primaryBtn, { backgroundColor: theme.text }]}
-            onPress={requestCameraPermission}
-          >
-            <ThemedText style={[styles.primaryBtnLabel, { color: theme.background }]}>
-              Grant camera access
-            </ThemedText>
-          </Pressable>
-          <Pressable onPress={signOut}>
-            <ThemedText type="small" themeColor="textSecondary">
-              Sign out
-            </ThemedText>
+          <Text style={styles.permissionLabel}>CAMERA</Text>
+          <Text style={styles.permissionTitle}>Camera access is required</Text>
+          <Text style={styles.permissionBody}>
+            VeriSnap only records what the camera sees right now. It never imports from your
+            gallery, which is what makes a capture worth anything as evidence.
+          </Text>
+          <Button label="Allow camera" onPress={requestCameraPermission} style={styles.stretch} />
+          <Pressable onPress={signOut} style={styles.signOutLink} accessibilityRole="button">
+            <Text style={styles.signOutLabel}>Sign out</Text>
           </Pressable>
         </SafeAreaView>
-      </ThemedView>
+      </View>
     );
   }
 
@@ -233,23 +230,35 @@ export function CaptureScreen() {
           </Pressable>
 
           {isPremium ? (
-            <View style={styles.premiumPill}>
-              <Text style={styles.premiumText}>★ Premium</Text>
+            <View style={[styles.pill, { borderColor: palette.cyan }]}>
+              <Text style={[styles.pillLabel, { color: palette.cyan }]}>PREMIUM</Text>
             </View>
           ) : (
             <Pressable
-              style={[styles.usagePill, monthlyCount >= limit && styles.usagePillFull]}
+              style={[
+                styles.pill,
+                { borderColor: monthlyCount >= limit ? palette.vermilion : palette.rule },
+              ]}
               onPress={() => setShowUpgradeModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${monthlyCount} of ${limit} captures filed this month. Open plans.`}
             >
-              <Text style={styles.usageText}>
-                {monthlyCount} / {limit} this month
+              <Text
+                style={[
+                  styles.pillLabel,
+                  { color: monthlyCount >= limit ? palette.vermilion : palette.chalk },
+                ]}
+              >
+                {monthlyCount} / {limit} THIS MONTH
               </Text>
             </Pressable>
           )}
 
           {pendingCount > 0 ? (
-            <View style={styles.pendingPill}>
-              <Text style={styles.pendingText}>⧗ {pendingCount} pending upload</Text>
+            <View style={[styles.pill, { borderColor: palette.amber }]}>
+              <Text style={[styles.pillLabel, { color: palette.amber }]}>
+                {pendingCount} AWAITING UPLOAD
+              </Text>
             </View>
           ) : null}
         </View>
@@ -258,13 +267,21 @@ export function CaptureScreen() {
       <SafeAreaView style={styles.controls} edges={['bottom']} pointerEvents="box-none">
         {locationGranted === false ? (
           <View style={styles.warnPill}>
-            <Text style={styles.warnText}>Location off — evidence will be saved without GPS</Text>
+            <Text style={styles.warnText}>Location off · captures will be filed without GPS</Text>
           </View>
         ) : null}
 
         <View style={styles.controlRow}>
-          {/* Left slot kept empty to keep the shutter centred. */}
-          <View style={styles.sideSlot} />
+          <View style={styles.sideSlot}>
+            <Pressable
+              style={styles.flipButton}
+              onPress={() => router.push('/evidence')}
+              accessibilityRole="button"
+              accessibilityLabel="Open evidence log"
+            >
+              <Text style={styles.flipText}>Log</Text>
+            </Pressable>
+          </View>
 
           <Pressable
             onPress={handleCapture}
@@ -298,74 +315,69 @@ export function CaptureScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  permission: { paddingHorizontal: 24, gap: 16, alignItems: 'center', maxWidth: 420 },
-  center: { textAlign: 'center' },
-  primaryBtn: {
-    borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-  },
-  primaryBtnLabel: { fontSize: 16, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: palette.ink },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ink },
+  permission: { paddingHorizontal: space.xl, gap: space.md, maxWidth: 420 },
+  permissionLabel: { ...type.label, color: palette.cyan },
+  permissionTitle: { ...type.title, color: palette.chalk },
+  permissionBody: { ...type.body, color: palette.mist, marginBottom: space.sm },
+  stretch: { alignSelf: 'stretch' },
+  signOutLink: { alignSelf: 'center', paddingVertical: space.sm },
+  signOutLabel: { ...type.label, color: palette.mist },
 
   topBar: { position: 'absolute', top: 0, right: 0, left: 0, alignItems: 'flex-end' },
-  topRight: { alignItems: 'flex-end', gap: 6, marginTop: 8, marginRight: 12 },
+  topRight: { alignItems: 'flex-end', gap: space.sm, marginTop: space.sm, marginRight: space.md },
   topButton: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: scrim.chrome,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs + 2,
+    borderRadius: radius.sm,
   },
-  topButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  pendingPill: {
-    backgroundColor: 'rgba(245,166,35,0.92)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+  topButtonText: { ...type.label, color: palette.chalk },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs + 2,
+    backgroundColor: scrim.chrome,
+    borderWidth: 1,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: space.xs,
+    borderRadius: radius.sm,
   },
-  pendingText: { color: '#000', fontSize: 12, fontWeight: '600' },
-  usagePill: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  usagePillFull: { backgroundColor: 'rgba(229,72,77,0.92)' },
-  usageText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  premiumPill: {
-    backgroundColor: 'rgba(61,214,140,0.92)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  premiumText: { color: '#00110a', fontSize: 12, fontWeight: '700' },
+  pillLabel: { ...type.label },
 
-  controls: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', gap: 12 },
-  warnPill: {
-    backgroundColor: 'rgba(245,166,35,0.92)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+  controls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: space.md,
   },
-  warnText: { color: '#000', fontSize: 12, fontWeight: '600' },
+  warnPill: {
+    backgroundColor: scrim.chrome,
+    borderWidth: 1,
+    borderColor: palette.amber,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.sm,
+  },
+  warnText: { ...type.dataSmall, color: palette.amber },
   controlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
-    paddingHorizontal: 32,
-    paddingBottom: 24,
+    paddingHorizontal: space.xl + space.sm,
+    paddingBottom: space.xl,
   },
   sideSlot: { width: 64, alignItems: 'center', justifyContent: 'center' },
   shutter: {
     width: 78,
     height: 78,
     borderRadius: 39,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 3,
+    borderColor: palette.chalk,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -373,17 +385,17 @@ const styles = StyleSheet.create({
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: '#fff',
+    backgroundColor: palette.chalk,
     alignItems: 'center',
     justifyContent: 'center',
   },
   shutterPressed: { opacity: 0.7 },
-  shutterDisabled: { opacity: 0.5 },
+  shutterDisabled: { opacity: 0.45 },
   flipButton: {
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: scrim.chrome,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm + 2,
+    borderRadius: radius.sm,
   },
-  flipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  flipText: { ...type.label, color: palette.chalk },
 });

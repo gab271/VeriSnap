@@ -12,6 +12,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { palette, radius, scrim, space, type } from '@/theme/tokens';
 import type { GpsCoordinates } from '@/types/evidence';
 
 interface CameraOverlayProps {
@@ -26,11 +27,6 @@ export function CameraOverlay({ gps, now }: CameraOverlayProps) {
 
   return (
     <View pointerEvents="none" style={[styles.container, { top: insets.top + 8 }]}>
-      <View style={styles.liveBadge}>
-        <View style={styles.liveDot} />
-        <Text style={styles.liveText}>LIVE CAPTURE</Text>
-      </View>
-
       <View style={styles.pill}>
         <Text style={styles.label}>UTC</Text>
         <Text style={styles.value}>
@@ -39,7 +35,7 @@ export function CameraOverlay({ gps, now }: CameraOverlayProps) {
       </View>
 
       <View style={styles.pill}>
-        <View style={[styles.gpsDot, { backgroundColor: hasFix ? '#3dd68c' : '#f5a623' }]} />
+        <View style={[styles.gpsDot, { backgroundColor: hasFix ? palette.cyan : palette.amber }]} />
         <Text style={styles.value}>
           {hasFix
             ? `${gps.latitude.toFixed(5)}, ${gps.longitude.toFixed(5)}` +
@@ -54,38 +50,22 @@ export function CameraOverlay({ gps, now }: CameraOverlayProps) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: space.md,
+    right: space.md,
     alignItems: 'flex-start',
-    gap: 8,
+    gap: space.sm,
   },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff3b30' },
-  liveText: { color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    gap: space.sm,
+    backgroundColor: scrim.chrome,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: space.xs + 2,
+    borderRadius: radius.sm,
   },
-  label: { color: '#9aa0a6', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  value: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-    // Monospaced so the ticking clock doesn't shift the layout each second.
-    fontVariant: ['tabular-nums'],
-  },
-  gpsDot: { width: 8, height: 8, borderRadius: 4 },
+  label: { ...type.label, color: palette.mist },
+  // Mono keeps the ticking clock from shifting the layout every second.
+  value: { ...type.data, color: palette.chalk },
+  gpsDot: { width: 7, height: 7, borderRadius: 3.5 },
 });

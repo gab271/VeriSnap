@@ -15,6 +15,7 @@ import {
   removePending,
 } from '@/services/offlineQueue';
 import { insertEvidenceRow, uploadEvidenceFile } from '@/services/uploadEvidence';
+import { verifyPendingRecords } from '@/services/verification';
 
 let syncing = false;
 
@@ -48,6 +49,10 @@ export async function flushQueue(onChange?: () => void): Promise<void> {
         break;
       }
     }
+
+    // Countersign anything still unsigned — captures made offline get verified as
+    // soon as connectivity returns. Best-effort; failures are retried next pass.
+    await verifyPendingRecords();
   } finally {
     syncing = false;
   }

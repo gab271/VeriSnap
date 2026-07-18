@@ -1,22 +1,23 @@
 /**
- * Post-capture review screen.
+ * Review before filing.
  *
- * Shows the freshly captured frame together with the exact metadata that will be
- * hashed and stored: the shutter-time UTC timestamp, the independently-read GPS
- * fix, the native resolution, and whether the camera returned EXIF. Surfacing
- * this before the user commits keeps the chain of custody transparent.
+ * Structured as a provisional version of the record it is about to become — same
+ * label/value rows, same order — so nothing about the evidence appears for the
+ * first time after you have already committed to it.
  *
- * The "Use as evidence" action is where the hashing engine (Milestone 3) and the
- * secure upload / offline queue (Milestone 4) will plug in.
+ * The note above the actions states the real consequence: filing is permanent.
+ * Evidence is append-only by design, so this is the last moment a capture can be
+ * discarded, and the interface says so plainly rather than burying it.
  */
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
+import { palette, space, type } from '@/theme/tokens';
 import type { CaptureResult } from '@/types/evidence';
+import { formatCoords, formatStamp } from '@/utils/format';
 
 interface CapturePreviewProps {
   capture: CaptureResult;
@@ -25,111 +26,59 @@ interface CapturePreviewProps {
   onUse: () => void;
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metaRow}>
-      <ThemedText type="small" themeColor="textSecondary" style={styles.metaLabel}>
-        {label}
-      </ThemedText>
-      <ThemedText type="small" style={styles.metaValue}>
-        {value}
-      </ThemedText>
-    </View>
-  );
-}
-
 export function CapturePreview({ capture, busy = false, onDiscard, onUse }: CapturePreviewProps) {
-  const theme = useTheme();
-
-  const exifKeyCount = capture.exif ? Object.keys(capture.exif).length : 0;
-  const gpsText = capture.gps
-    ? `${capture.gps.latitude.toFixed(6)}, ${capture.gps.longitude.toFixed(6)}` +
-      (capture.gps.accuracy != null ? `  (±${Math.round(capture.gps.accuracy)} m)` : '')
-    : 'No GPS fix recorded';
+  const exifCount = capture.exif ? Object.keys(capture.exif).length : 0;
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Image
-            source={{ uri: capture.uri }}
-            style={styles.image}
-            resizeMode="contain"
-          />
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Image source={{ uri: capture.uri }} style={styles.photo} contentFit="cover" />
 
-          <ThemedView type="backgroundElement" style={styles.metaCard}>
-            <ThemedText type="smallBold">Evidence metadata</ThemedText>
-            <MetaRow label="Captured (device UTC)" value={capture.utcTimestamp} />
-            <MetaRow label="GPS (from OS, not EXIF)" value={gpsText} />
-            {capture.gps ? (
-              <MetaRow label="GPS fix time (UTC)" value={capture.gps.capturedAt} />
-            ) : null}
-            <MetaRow label="Resolution" value={`${capture.width} × ${capture.height}`} />
-            <MetaRow
-              label="EXIF tags returned"
-              value={exifKeyCount > 0 ? `${exifKeyCount} tags` : 'none'}
+        <View style={styles.body}>
+          <Text style={styles.sectionLabel}>Unfiled capture</Text>
+
+          <View style={styles.fields}>
+            <Field
+              label="Captured"
+              value={formatStamp(capture.utcTimestamp)}
+              note="Device clock, stamped at the shutter"
             />
-          </ThemedView>
+            <Field
+              label="Location"
+              value={formatCoords(
+                capture.gps?.latitude ?? null,
+                capture.gps?.longitude ?? null,
+                capture.gps?.accuracy ?? null,
+              )}
+              note="Read from the OS at the shutter, not from EXIF"
+            />
+            <Field label="Size" value={`${capture.width} × ${capture.height}`} />
+            <Field label="EXIF" value={exifCount > 0 ? `${exifCount} tags` : 'None returned'} />
+          </View>
 
-          <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-            Next: this file will be SHA-256 hashed on-device, then uploaded with a
-            trusted server timestamp.
-          </ThemedText>
-        </ScrollView>
+          <Text style={styles.consequence}>
+            Filing fingerprints this file and seals it. Filed evidence cannot be edited or
+            deleted — this is the last moment to discard it.
+          </Text>
 
-        <View style={styles.actions}>
-          <Pressable
-            style={[styles.button, styles.secondary, { borderColor: theme.backgroundSelected }]}
-            onPress={onDiscard}
-            disabled={busy}
-          >
-            <ThemedText style={styles.secondaryLabel}>Discard</ThemedText>
-          </Pressable>
-          <Pressable
-            style={[styles.button, { backgroundColor: theme.text }, busy && styles.disabled]}
-            onPress={onUse}
-            disabled={busy}
-          >
-            {busy ? (
-              <ActivityIndicator color={theme.background} />
-            ) : (
-              <ThemedText style={[styles.primaryLabel, { color: theme.background }]}>
-                Use as evidence
-              </ThemedText>
-            )}
-          </Pressable>
+          <View style={styles.actions}>
+            <Button label="Discard" variant="secondary" onPress={onDiscard} disabled={busy} style={styles.action} />
+            <Button label="File as evidence" onPress={onUse} loading={busy} style={styles.action} />
+          </View>
         </View>
-      </SafeAreaView>
-    </ThemedView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  scroll: { padding: Spacing.three, gap: Spacing.three },
-  image: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    borderRadius: Spacing.two,
-    backgroundColor: '#000',
-  },
-  metaCard: { gap: Spacing.two, padding: Spacing.three, borderRadius: Spacing.three },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.three },
-  metaLabel: { flexShrink: 0 },
-  metaValue: { flexShrink: 1, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  note: { textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: Spacing.three, padding: Spacing.three },
-  button: {
-    flex: 1,
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
-  },
-  secondary: { borderWidth: 1 },
-  secondaryLabel: { fontSize: 16, fontWeight: '600' },
-  primaryLabel: { fontSize: 16, fontWeight: '600' },
-  disabled: { opacity: 0.6 },
+  screen: { flex: 1, backgroundColor: palette.ink },
+  scroll: { paddingBottom: space.xxl },
+  photo: { width: '100%', aspectRatio: 3 / 4, backgroundColor: palette.inkRaised },
+  body: { padding: space.xl, gap: space.xl },
+  sectionLabel: { ...type.label, color: palette.mist },
+  fields: { gap: space.md },
+  consequence: { ...type.body, color: palette.chalk },
+  actions: { flexDirection: 'row', gap: space.md },
+  action: { flex: 1 },
 });

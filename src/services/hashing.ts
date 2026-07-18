@@ -2,7 +2,7 @@
  * On-device hashing engine — the integrity core of the chain of custody.
  *
  * SECURITY DECISION 1 — hash the RAW FILE BYTES (not a base64 string):
- * We read the exact bytes on disk with `File.arrayBuffer()` and hash those. The
+ * We read the exact bytes on disk with `File.bytes()` and hash those. The
  * resulting hex digest is byte-for-byte identical to what any standard tool
  * (`sha256sum`, `openssl dgst -sha256`, `certutil -hashfile`) produces for the
  * same file. That means a third party — a court, an insurer, an opposing
@@ -35,7 +35,9 @@ function bufferToHex(buffer: ArrayBuffer): string {
  */
 export async function hashFileSha256(uri: string): Promise<string> {
   const file = new File(uri);
-  const buffer = await file.arrayBuffer();
-  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, buffer);
+  // `bytes()` (not `arrayBuffer()`): despite its `BufferSource` type, native
+  // `digest()` rejects a bare ArrayBuffer and requires an actual TypedArray.
+  const bytes = await file.bytes();
+  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
   return bufferToHex(digest);
 }

@@ -1,22 +1,44 @@
+import {
+  IBMPlexMono_400Regular,
+  IBMPlexMono_500Medium,
+  IBMPlexMono_600SemiBold,
+} from '@expo-google-fonts/ibm-plex-mono';
+import {
+  IBMPlexSansCondensed_400Regular,
+  IBMPlexSansCondensed_600SemiBold,
+  IBMPlexSansCondensed_700Bold,
+} from '@expo-google-fonts/ibm-plex-sans-condensed';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { ActivityIndicator, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useEvidenceStore } from '@/store/evidenceStore';
+import { palette } from '@/theme/tokens';
 
 // Keep the native splash visible until we know whether a session exists, so the
 // user never sees a flash of the sign-in screen before being routed to the app.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const initializing = useAuthStore((s) => s.initializing);
   const session = useAuthStore((s) => s.session);
   const initialize = useAuthStore((s) => s.initialize);
   const startSync = useEvidenceStore((s) => s.startSync);
+
+  // Hold the splash until the typefaces are ready, so text never reflows on first
+  // paint. Mono carries the hashes; a fallback swap would be visibly jarring.
+  const [fontsLoaded] = useFonts({
+    IBMPlexMono_400Regular,
+    IBMPlexMono_500Medium,
+    IBMPlexMono_600SemiBold,
+    IBMPlexSansCondensed_400Regular,
+    IBMPlexSansCondensed_600SemiBold,
+    IBMPlexSansCondensed_700Bold,
+  });
 
   // Resolve the persisted session once, and subscribe to future auth changes.
   useEffect(() => {
@@ -33,36 +55,53 @@ export default function RootLayout() {
   }, [session, startSync]);
 
   useEffect(() => {
-    if (!initializing) {
+    if (!initializing && fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [initializing]);
+  }, [initializing, fontsLoaded]);
 
-  if (initializing) {
+  if (initializing || !fontsLoaded) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View style={styles.boot}>
+        <ActivityIndicator color={palette.cyan} />
       </View>
     );
   }
 
-  const backgroundColor = colorScheme === 'dark' ? Colors.dark.background : Colors.light.background;
-
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor } }}>
-      {/*
+    <>
+      {/* The app has one fixed identity — a vault looks the same every time you
+          open it — so the status bar is pinned light rather than following the
+          system theme. */}
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.ink } }}
+      >
+        {/*
         Route guards enforce the auth boundary declaratively: when a screen's
         guard is false it is removed from the navigator and expo-router falls
         back to the first available route. Authenticated users can never reach
         sign-in, and signed-out users can never reach evidence screens.
       */}
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="index" />
-      </Stack.Protected>
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="evidence/index" />
+          <Stack.Screen name="evidence/[id]" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="sign-in" />
-      </Stack.Protected>
-    </Stack>
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.ink,
+  },
+});

@@ -15,6 +15,7 @@ import { hashFileSha256 } from '@/services/hashing';
 import { enqueueEvidence } from '@/services/offlineQueue';
 import { supabase } from '@/services/supabase';
 import { insertEvidenceRow, uploadEvidenceFile } from '@/services/uploadEvidence';
+import { verifyEvidenceRecord } from '@/services/verification';
 import type {
   CaptureResult,
   EvidenceCategory,
@@ -133,9 +134,15 @@ export async function saveEvidence({
   // upload retried — enqueue with rowInserted: true to avoid a duplicate insert.
   try {
     await uploadEvidenceFile(storagePath, capture.uri, CONTENT_TYPE);
-    return { status: 'uploaded', sha256Hash };
   } catch {
     await enqueueEvidence({ insert, sourceUri: capture.uri, contentType: CONTENT_TYPE, rowInserted: true });
     return { status: 'queued', reason: 'error', sha256Hash };
   }
+
+  // Step 3: ask the server to independently re-hash the stored bytes and sign the
+  // record. This is what turns "a hash we stored" into evidence a third party can
+  // verify. Best-effort: a failure leaves the record `pending` and the sync sweep
+  // retries it — the evidence itself is already safely stored either way.
+  const verification = await verifyEvidenceRecord(id);
+  return { status: 'uploaded', sha256Hash, verification: verification.status };
 }

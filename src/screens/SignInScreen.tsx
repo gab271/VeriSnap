@@ -1,32 +1,35 @@
 /**
- * Email / password authentication screen.
+ * The front door.
  *
- * A verifiable identity is the first link in the chain of custody: every piece
- * of evidence is stamped with the authenticated user's id. We therefore require
- * a real account (email + password) rather than anonymous access.
+ * Laid out as an evidence record: the same label/value rows used on the record
+ * screen, so the app teaches its own vocabulary — capture, fingerprint, seal —
+ * before you are inside. The three rows are the product's actual guarantees, not
+ * marketing copy, which is the only kind of claim this product can afford to make.
+ *
+ * Inputs are set in mono with a single rule underneath: data entry on a form,
+ * not a rounded app field.
  */
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Button } from '@/components/Button';
+import { Field } from '@/components/Field';
+import { palette, space, type } from '@/theme/tokens';
 import { useAuthStore } from '@/store/authStore';
 
 type Mode = 'signIn' | 'signUp';
 
 export function SignInScreen() {
-  const theme = useTheme();
   const submitting = useAuthStore((s) => s.submitting);
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
@@ -34,6 +37,7 @@ export function SignInScreen() {
   const [mode, setMode] = useState<Mode>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -42,136 +46,131 @@ export function SignInScreen() {
     setNotice(null);
 
     if (!email.trim() || !password) {
-      setError('Enter both an email and a password.');
+      setError('Enter your email and password.');
       return;
     }
 
-    const action = mode === 'signIn' ? signIn : signUp;
-    const { error: authError } = await action(email, password);
-
+    const { error: authError } = await (mode === 'signIn' ? signIn : signUp)(email, password);
     if (authError) {
       setError(authError);
       return;
     }
 
-    // On sign-up, Supabase may require email confirmation depending on project
-    // settings, in which case no session is created yet.
     if (mode === 'signUp') {
-      setNotice('Account created. If email confirmation is enabled, check your inbox before signing in.');
+      setNotice('Account created. If email confirmation is on, confirm it, then sign in.');
       setMode('signIn');
     }
   };
 
+  const rule = (field: 'email' | 'password') => ({
+    borderBottomColor: focused === field ? palette.cyan : palette.rule,
+  });
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.form}
-        >
-          <View style={styles.header}>
-            <ThemedText type="title">VeriSnap</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Tamper-evident evidence capture
-            </ThemedText>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.masthead}>
+            <Text style={styles.wordmark}>VERISNAP</Text>
+            <Text style={styles.title}>Tamper-evident evidence</Text>
           </View>
 
-          <View style={styles.fields}>
-            <TextInput
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
-              placeholder="Email"
-              placeholderTextColor={theme.textSecondary}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              editable={!submitting}
-            />
-            <TextInput
-              style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
-              placeholder="Password"
-              placeholderTextColor={theme.textSecondary}
-              autoCapitalize="none"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-              editable={!submitting}
-            />
+          {/* The guarantee, in the same form as a filed record. */}
+          <View style={styles.manifest}>
+            <Field label="Capture" value="Live camera only. No gallery imports." />
+            <Field label="Fingerprint" value="SHA-256 taken on this device, before upload." />
+            <Field label="Seal" value="Countersigned by the server. Anyone can verify it." />
           </View>
 
-          {error ? (
-            <ThemedText type="small" style={styles.error}>
-              {error}
-            </ThemedText>
-          ) : null}
-          {notice ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              {notice}
-            </ThemedText>
-          ) : null}
+          <View style={styles.form}>
+            <View style={styles.inputBlock}>
+              <Text style={styles.inputLabel}>EMAIL</Text>
+              <TextInput
+                style={[styles.input, rule('email')]}
+                placeholder="you@example.com"
+                placeholderTextColor={palette.rule}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => setFocused('email')}
+                onBlur={() => setFocused(null)}
+                editable={!submitting}
+              />
+            </View>
 
-          <Pressable
-            style={[styles.button, { backgroundColor: theme.text }, submitting && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color={theme.background} />
-            ) : (
-              <ThemedText style={[styles.buttonLabel, { color: theme.background }]}>
-                {mode === 'signIn' ? 'Sign in' : 'Create account'}
-              </ThemedText>
-            )}
-          </Pressable>
+            <View style={styles.inputBlock}>
+              <Text style={styles.inputLabel}>PASSWORD</Text>
+              <TextInput
+                style={[styles.input, rule('password')]}
+                placeholder="••••••••"
+                placeholderTextColor={palette.rule}
+                autoCapitalize="none"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused(null)}
+                editable={!submitting}
+              />
+            </View>
 
-          <Pressable
-            onPress={() => {
-              setError(null);
-              setNotice(null);
-              setMode((m) => (m === 'signIn' ? 'signUp' : 'signIn'));
-            }}
-            disabled={submitting}
-          >
-            <ThemedText type="small" themeColor="textSecondary" style={styles.switchMode}>
-              {mode === 'signIn'
-                ? "Don't have an account? Create one"
-                : 'Already have an account? Sign in'}
-            </ThemedText>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </ThemedView>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+
+            <Button
+              label={mode === 'signIn' ? 'Sign in' : 'Create account'}
+              onPress={handleSubmit}
+              loading={submitting}
+            />
+
+            <Pressable
+              onPress={() => {
+                setError(null);
+                setNotice(null);
+                setMode((m) => (m === 'signIn' ? 'signUp' : 'signIn'));
+              }}
+              disabled={submitting}
+              style={styles.switch}
+              accessibilityRole="button"
+            >
+              <Text style={styles.switchLabel}>
+                {mode === 'signIn' ? 'Create an account' : 'Sign in instead'}
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  form: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  header: { gap: Spacing.one, alignItems: 'center' },
-  fields: { gap: Spacing.three },
+  screen: { flex: 1, backgroundColor: palette.ink },
+  flex: { flex: 1 },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: space.xl, gap: space.xxl },
+
+  masthead: { gap: space.sm },
+  wordmark: { ...type.label, color: palette.cyan },
+  title: { ...type.display, color: palette.chalk },
+
+  manifest: { gap: space.md },
+
+  form: { gap: space.xl },
+  inputBlock: { gap: space.sm },
+  inputLabel: { ...type.label, color: palette.mist },
   input: {
-    borderWidth: 1,
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    fontSize: 16,
+    ...type.data,
+    color: palette.chalk,
+    borderBottomWidth: 1,
+    paddingVertical: space.sm,
   },
-  error: { color: '#e5484d' },
-  button: {
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
-  },
-  buttonDisabled: { opacity: 0.6 },
-  buttonLabel: { fontSize: 16, fontWeight: '600' },
-  switchMode: { textAlign: 'center' },
+  error: { ...type.dataSmall, color: palette.vermilion },
+  notice: { ...type.dataSmall, color: palette.mist },
+  switch: { alignSelf: 'center', paddingVertical: space.sm },
+  switchLabel: { ...type.label, color: palette.mist },
 });

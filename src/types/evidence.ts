@@ -82,9 +82,26 @@ export interface EvidenceInsert {
   category: EvidenceCategory | null;
 }
 
+/**
+ * Server-side verification state of a record.
+ *  - `verified`  the server re-hashed the stored bytes, they matched, and it signed the record
+ *  - `mismatch`  the stored bytes do NOT match the hash taken at capture (tampering/corruption)
+ *  - `pending`   not verified yet (offline, or the call hasn't run) — retried later
+ */
+export type VerificationStatus = 'verified' | 'mismatch' | 'pending';
+
+export interface VerificationResult {
+  status: VerificationStatus;
+  serverHash?: string;
+  signature?: string;
+  signingKeyId?: string;
+  verifiedAt?: string;
+  message?: string;
+}
+
 /** Outcome of attempting to persist a capture (online or offline). */
 export type SaveResult =
-  | { status: 'uploaded'; sha256Hash: string }
+  | { status: 'uploaded'; sha256Hash: string; verification: VerificationStatus }
   | { status: 'queued'; reason: 'offline' | 'error'; sha256Hash: string }
   | { status: 'limit_reached' }
   | { status: 'error'; message: string };
@@ -111,4 +128,15 @@ export interface EvidenceRecord {
   exif: Record<string, unknown> | null;
   category: EvidenceCategory | null;
   createdAt: string;
+
+  // --- Server-side verification (written only by the verify-evidence function) ---
+  /** SHA-256 the server computed from the stored bytes — the trustworthy one. */
+  serverSha256Hash: string | null;
+  hashVerified: boolean;
+  verifiedAt: string | null;
+  /** Base64 ECDSA P-256 signature over `signedPayload`. */
+  signature: string | null;
+  signingKeyId: string | null;
+  /** Exact canonical string that was signed, stored so verifiers needn't guess. */
+  signedPayload: string | null;
 }
