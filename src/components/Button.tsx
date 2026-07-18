@@ -14,7 +14,8 @@ import { palette, radius, space, type } from '@/theme/tokens';
 interface ButtonProps {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  /** `danger` is secondary weight, tinted — it must never be the easy button. */
+  variant?: 'primary' | 'secondary' | 'danger';
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
@@ -29,6 +30,7 @@ export function Button({
   style,
 }: ButtonProps) {
   const primary = variant === 'primary';
+  const danger = variant === 'danger';
   const inactive = disabled || loading;
 
   return (
@@ -40,16 +42,25 @@ export function Button({
       accessibilityState={{ disabled: inactive, busy: loading }}
       style={({ pressed }) => [
         styles.base,
-        primary ? styles.primary : styles.secondary,
+        primary && styles.primary,
+        variant === 'secondary' && styles.secondary,
+        danger && styles.danger,
         pressed && styles.pressed,
         inactive && styles.inactive,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? palette.ink : palette.cyan} />
+        <ActivityIndicator color={primary ? palette.ink : danger ? palette.vermilion : palette.cyan} />
       ) : (
-        <Text style={[styles.label, primary ? styles.labelPrimary : styles.labelSecondary]}>
+        <Text
+          style={[
+            styles.label,
+            primary && styles.labelPrimary,
+            variant === 'secondary' && styles.labelSecondary,
+            danger && styles.labelDanger,
+          ]}
+        >
           {label.toUpperCase()}
         </Text>
       )}
@@ -68,9 +79,11 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: palette.cyan },
   secondary: { borderWidth: 1, borderColor: palette.rule },
+  danger: { borderWidth: 1, borderColor: palette.vermilion },
   pressed: { opacity: 0.75 },
   inactive: { opacity: 0.45 },
   label: { ...type.label },
   labelPrimary: { color: palette.ink },
   labelSecondary: { color: palette.chalk },
+  labelDanger: { color: palette.vermilion },
 });

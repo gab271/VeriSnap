@@ -9,6 +9,7 @@
  * Inputs are set in mono with a single rule underneath: data entry on a form,
  * not a rounded app field.
  */
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -30,6 +31,7 @@ import { useAuthStore } from '@/store/authStore';
 type Mode = 'signIn' | 'signUp';
 
 export function SignInScreen() {
+  const router = useRouter();
   const submitting = useAuthStore((s) => s.submitting);
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
@@ -128,20 +130,39 @@ export function SignInScreen() {
               loading={submitting}
             />
 
-            <Pressable
-              onPress={() => {
-                setError(null);
-                setNotice(null);
-                setMode((m) => (m === 'signIn' ? 'signUp' : 'signIn'));
-              }}
-              disabled={submitting}
-              style={styles.switch}
-              accessibilityRole="button"
-            >
-              <Text style={styles.switchLabel}>
-                {mode === 'signIn' ? 'Create an account' : 'Sign in instead'}
-              </Text>
-            </Pressable>
+            <View style={styles.links}>
+              <Pressable
+                onPress={() => {
+                  setError(null);
+                  setNotice(null);
+                  setMode((m) => (m === 'signIn' ? 'signUp' : 'signIn'));
+                }}
+                disabled={submitting}
+                accessibilityRole="button"
+              >
+                <Text style={styles.switchLabel}>
+                  {mode === 'signIn' ? 'Create an account' : 'Sign in instead'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push('/forgot-password')}
+                disabled={submitting}
+                accessibilityRole="button"
+              >
+                <Text style={styles.switchLabel}>Forgot password</Text>
+              </Pressable>
+            </View>
+
+            {/* Store review requires these to be reachable before signing up. */}
+            <View style={styles.links}>
+              <Pressable onPress={() => router.push('/legal/terms')} accessibilityRole="button">
+                <Text style={styles.legalLabel}>Terms</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push('/legal/privacy')} accessibilityRole="button">
+                <Text style={styles.legalLabel}>Privacy</Text>
+              </Pressable>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -171,6 +192,12 @@ const styles = StyleSheet.create({
   },
   error: { ...type.dataSmall, color: palette.vermilion },
   notice: { ...type.dataSmall, color: palette.mist },
-  switch: { alignSelf: 'center', paddingVertical: space.sm },
+  links: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: space.xs,
+  },
   switchLabel: { ...type.label, color: palette.mist },
+  legalLabel: { ...type.label, color: palette.rule },
 });

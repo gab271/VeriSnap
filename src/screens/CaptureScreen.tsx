@@ -225,8 +225,13 @@ export function CaptureScreen() {
 
       <SafeAreaView style={styles.topBar} edges={['top']} pointerEvents="box-none">
         <View style={styles.topRight}>
-          <Pressable style={styles.topButton} onPress={signOut}>
-            <Text style={styles.topButtonText}>Sign out</Text>
+          <Pressable
+            style={styles.topButton}
+            onPress={() => router.push('/account')}
+            accessibilityRole="button"
+            accessibilityLabel="Account settings"
+          >
+            <Text style={styles.topButtonText}>ACCOUNT</Text>
           </Pressable>
 
           {isPremium ? (

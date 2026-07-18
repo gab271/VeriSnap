@@ -96,11 +96,17 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="evidence/index" />
           <Stack.Screen name="evidence/[id]" />
+          <Stack.Screen name="account" />
         </Stack.Protected>
 
         <Stack.Protected guard={!session}>
           <Stack.Screen name="sign-in" />
+          <Stack.Screen name="forgot-password" />
         </Stack.Protected>
+
+        {/* Readable either way: someone deciding whether to sign up must be able
+            to read the terms first, and store reviewers check for exactly that. */}
+        <Stack.Screen name="legal/[doc]" />
       </Stack>
     </>
   );
