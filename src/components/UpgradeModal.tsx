@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
-import { purchaseTier, type PremiumTier } from '@/services/purchaseService';
+import { purchaseTier, restorePurchases, type PremiumTier } from '@/services/purchaseService';
 import { useEntitlementStore } from '@/store/entitlementStore';
 import { palette, radius, scrim, space, type } from '@/theme/tokens';
 
@@ -46,10 +46,13 @@ export function UpgradeModal() {
   const limit = useEntitlementStore((s) => s.limit);
   const setShowUpgradeModal = useEntitlementStore((s) => s.setShowUpgradeModal);
 
+  const refreshAfterPurchase = useEntitlementStore((s) => s.refreshAfterPurchase);
   const [pendingTier, setPendingTier] = useState<PremiumTier | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const atLimit = monthlyCount >= limit;
+  const busy = pendingTier !== null || restoring;
 
   const close = () => {
     setNotice(null);
@@ -61,7 +64,27 @@ export function UpgradeModal() {
     setPendingTier(tier);
     const result = await purchaseTier(tier);
     setPendingTier(null);
+
+    // Backing out of the payment sheet is a normal choice, not a failure.
+    if (result.cancelled) return;
+
     setNotice(result.message);
+    if (result.ok) {
+      await refreshAfterPurchase();
+      close();
+    }
+  };
+
+  const handleRestore = async () => {
+    setNotice(null);
+    setRestoring(true);
+    const result = await restorePurchases();
+    setRestoring(false);
+    setNotice(result.message);
+    if (result.ok) {
+      await refreshAfterPurchase();
+      close();
+    }
   };
 
   return (
@@ -90,7 +113,7 @@ export function UpgradeModal() {
                   onPress={() => handleUpgrade(tier.id)}
                   variant={tier.id === 'premium' ? 'primary' : 'secondary'}
                   loading={pendingTier === tier.id}
-                  disabled={pendingTier !== null}
+                  disabled={busy}
                 />
               </View>
             ))}
@@ -98,9 +121,24 @@ export function UpgradeModal() {
 
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-          <Pressable onPress={close} style={styles.dismiss} accessibilityRole="button">
-            <Text style={styles.dismissLabel}>Not now</Text>
-          </Pressable>
+          <View style={styles.footer}>
+            {/* Required by the App Store: anyone reinstalling, or signing in on a
+                second device, must be able to get back what they already paid for. */}
+            <Pressable
+              onPress={handleRestore}
+              disabled={busy}
+              style={styles.dismiss}
+              accessibilityRole="button"
+            >
+              <Text style={styles.dismissLabel}>
+                {restoring ? 'RESTORING…' : 'Restore purchases'}
+              </Text>
+            </Pressable>
+
+            <Pressable onPress={close} style={styles.dismiss} accessibilityRole="button">
+              <Text style={styles.dismissLabel}>Not now</Text>
+            </Pressable>
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -138,6 +176,7 @@ const styles = StyleSheet.create({
   tierUnlocks: { ...type.body, color: palette.mist, marginBottom: space.xs },
 
   notice: { ...type.dataSmall, color: palette.mist },
-  dismiss: { alignSelf: 'center', paddingVertical: space.sm },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dismiss: { paddingVertical: space.sm, paddingHorizontal: space.sm },
   dismissLabel: { ...type.label, color: palette.mist },
 });

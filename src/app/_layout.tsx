@@ -15,6 +15,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { configureBilling } from '@/services/purchaseService';
 import { useAuthStore } from '@/store/authStore';
 import { useEvidenceStore } from '@/store/evidenceStore';
 import { palette } from '@/theme/tokens';
@@ -53,6 +54,14 @@ export default function RootLayout() {
     const unsubscribe = startSync();
     return unsubscribe;
   }, [session, startSync]);
+
+  // Point RevenueCat at the Supabase user id, so its webhook can map a purchase
+  // straight back to the right profile row. No-ops in Expo Go, where there is no
+  // native billing SDK.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    void configureBilling(session.user.id);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!initializing && fontsLoaded) {

@@ -15,12 +15,22 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { HashFingerprint } from '@/components/HashFingerprint';
 import { SealBadge } from '@/components/SealBadge';
+import { exportCertificate } from '@/services/certificate';
 import { getEvidenceById, getSignedUrl } from '@/services/evidenceQueries';
 import { palette, radius, space, type } from '@/theme/tokens';
 import type { EvidenceRecord } from '@/types/evidence';
@@ -50,6 +60,7 @@ export function EvidenceDetailScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -69,6 +80,16 @@ export function EvidenceDetailScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleExport = useCallback(async () => {
+    if (!record) return;
+    setExporting(true);
+    const outcome = await exportCertificate(record);
+    setExporting(false);
+    if (outcome.status === 'unavailable' || outcome.status === 'error') {
+      Alert.alert('Certificate not created', outcome.message);
+    }
+  }, [record]);
 
   const header = (
     <Pressable
@@ -197,6 +218,18 @@ export function EvidenceDetailScreen() {
               </Text>
             </View>
           ) : null}
+
+          {/* 5. The deliverable: what actually gets sent to a lawyer or insurer. */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Export</Text>
+            <Button label="Export certificate" onPress={handleExport} loading={exporting} />
+            <Text style={styles.fieldNote}>
+              Creates a PDF holding the photograph, the fingerprint, the signature, and
+              step-by-step instructions for verifying this record independently. Send the
+              original file alongside it — verification is performed against the file, not the
+              certificate.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -227,10 +260,7 @@ const styles = StyleSheet.create({
   hashGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   hashGroup: { ...type.hash, color: palette.chalk },
 
-  field: { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' },
   fieldLabel: { ...type.label, color: palette.mist, width: 92, paddingTop: 3 },
-  fieldValueWrap: { flex: 1, gap: 2 },
-  fieldValue: { ...type.data, color: palette.chalk },
   fieldNote: { ...type.dataSmall, color: palette.mist },
 
   signature: { ...type.dataSmall, color: palette.chalk, lineHeight: 18 },

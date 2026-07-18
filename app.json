@@ -8,9 +8,12 @@
     "scheme": "verisnap",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.gab271.verisnap",
+      "supportsTablet": false
     },
     "android": {
+      "package": "com.gab271.verisnap",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
